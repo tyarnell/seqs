@@ -70,12 +70,15 @@ func main() {
 	}
 	fmt.Println("ring (oldest→newest):", slices.Collect(r.Values()))
 
-	// seqs in the middle: the container's Values() gets us onto the bus.
-	doubledEvens := slices.Collect(seqs.Pipe(r.Values(),
-		seqs.Filter(func(n int) bool { return n%2 == 0 }),
-		seqs.Map(func(n int) int { return n * 2 }),
-	))
-	fmt.Println("evens × 2:           ", doubledEvens)
+	// --- Steps, then a recipe — a custom container is no different from any
+	// other source: its Values() gets us onto the bus, seqs does the middle. ---
+	var (
+		keepEven = seqs.Filter(func(n int) bool { return n%2 == 0 })
+		double   = seqs.Map(func(n int) int { return n * 2 })
+		tenfold  = seqs.Map(func(n int) int { return n * 10 })
+	)
+
+	fmt.Println("evens × 2:           ", slices.Collect(seqs.Pipe(r.Values(), keepEven, double)))
 
 	// All() carries position — range it as a Seq2 (or transform with the *2 set).
 	fmt.Println("by age:")
@@ -84,6 +87,6 @@ func main() {
 	}
 
 	// The way back: transform a sequence, then Collect into a new container.
-	r2 := CollectRing(seqs.Map(func(n int) int { return n * 10 })(r.Values()), 3)
+	r2 := CollectRing(seqs.Pipe(r.Values(), tenfold), 3)
 	fmt.Println("collected back (cap 3):", slices.Collect(r2.Values()))
 }

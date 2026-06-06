@@ -4,6 +4,29 @@ All combinators operate on `iter.Seq[T]` (or `iter.Seq2[K, V]`). For the
 container ↔ sequence boundary, use the standard library — `seqs` does not
 duplicate it (see [Producers & consumers](#producers--consumers)).
 
+## Writing readable pipelines (recipe style)
+
+Each combinator returns a value (a `Transform[T]`), so you can name your steps
+once and let the `Pipe` read as a recipe — a list of step names instead of a
+wall of inline closures:
+
+```go
+// Steps: define once.
+var (
+    keepEven = seqs.Filter(func(n int) bool { return n%2 == 0 })
+    square   = seqs.Map(func(n int) int { return n * n })
+    first3   = seqs.Limit[int](3)
+)
+
+// Recipe: read top to bottom.
+out := slices.Collect(seqs.Pipe(nums, keepEven, square, first3))
+```
+
+The same idiom works for `Pipe2` with named `Transform2` steps. One rule keeps
+it honest: **one `Pipe` per element type** — the type-crossing steps (`MapTo`,
+`Batch`, `Window`) sit outside the `Pipe` as plain calls. The runnable
+[`examples/`](../examples) all follow this shape.
+
 ## Seq[T]
 
 ### Core

@@ -52,28 +52,30 @@ func byRegion(s iter.Seq[Order]) iter.Seq2[string, Order] {
 }
 
 func main() {
-	// One Pipe2, staying in Seq2 so region and order stay paired: Filter2 keeps
-	// the big orders, Map2 normalises the key to upper-case. big is pure (no
-	// side effects), so it can be re-ranged freely below.
-	big := seqs.Pipe2(byRegion(orders()),
-		seqs.Filter2(func(_ string, o Order) bool { return o.Amount >= 50 }),
-		seqs.Map2(func(region string, o Order) (string, Order) {
+	// --- Steps: named Transform2 stages, defined once. ---
+	var (
+		bigOnly = seqs.Filter2(func(_ string, o Order) bool { return o.Amount >= 50 })
+		upcase  = seqs.Map2(func(region string, o Order) (string, Order) {
 			return strings.ToUpper(region), o
-		}),
+		})
+		audit = seqs.Tee2(func(region string, o Order) {
+			fmt.Printf("    · audit %s in %s\n", o.ID, region)
+		})
 	)
+
+	// The pipeline reads as a recipe; staying in Seq2 keeps region+order paired.
+	// big is pure (no side effects), so it can be re-ranged freely below.
+	big := seqs.Pipe2(byRegion(orders()), bigOnly, upcase)
 
 	fmt.Println("=== Pipe2: orders >= $50, region upper-cased ===")
 	for region, o := range big { // ranging a Seq2 directly
 		fmt.Printf("    %-9s %s ($%d)\n", region, o.ID, o.Amount)
 	}
 
-	// Tee2 taps a Seq2 for side effects. We drain it exactly once so the trace
+	// Tee2 taps a Seq2 for side effects. Drain it exactly once so the trace
 	// prints once — re-ranging a lazy seq re-runs everything, side effects too.
 	fmt.Println("\n=== Tee2: drain once for a side-effect trace ===")
-	traced := seqs.Pipe2(big, seqs.Tee2(func(region string, o Order) {
-		fmt.Printf("    · audit %s in %s\n", o.ID, region)
-	}))
-	seqs.ForEach2(traced, func(string, Order) {}) // Tee2 does the printing
+	seqs.ForEach2(seqs.Pipe2(big, audit), func(string, Order) {}) // audit does the printing
 
 	// --- Bridge DOWN: project the same Seq2 onto one side. ---
 	fmt.Println("\n=== Keys / Values projections ===")
